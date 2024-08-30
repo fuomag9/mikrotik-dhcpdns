@@ -98,6 +98,7 @@ def update(host=None, ip=None):
         update.add(ptr, ttl, 'PTR', fqdn)
 
         response = dns.query.tcp(update, dnsserver)
+        print(response)
         return "OK", 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -115,7 +116,6 @@ def delete(host=None):
         return "IP not found for host", 404
 
     t = get_ip_type(ip)
-    fqdn = f"{host}.{zone}"
 
     try:
         update = dns.update.Update(zone, keyring=dns.tsigkeyring.from_text({keyname: keyval}), keyalgorithm=dns.tsig.HMAC_MD5)
@@ -126,6 +126,7 @@ def delete(host=None):
         update.delete(host, t)
 
         response = dns.query.tcp(update, dnsserver)
+        print(response)
         return "OK", 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
