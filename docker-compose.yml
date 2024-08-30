@@ -1,0 +1,9 @@
+services:
+    mikrotik-dhcpdns:
+        ports:
+            - 5000:5000
+        restart: always
+        build:
+            context: .
+        container_name: mikrotik-dhcpdns
+        image: mikrotik-dhcpdns
