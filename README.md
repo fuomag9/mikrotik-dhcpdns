@@ -8,7 +8,7 @@ The script uses dig and nsupdate for dns management and Python Flask for webserv
 * Dockerfile
   Ubuntu Based Dockerfile, for running the Python based webserver
 * mikrotik.py
-  This is the webserver, and this script communicates to dns via nsupdate and dig.
+  This is the webserver, and this script does the DDNS updates 
 * mikrotik_script.txt
   This mikrotik script triggers the webserver if dns needs to be changed based on the dhcp list
 
