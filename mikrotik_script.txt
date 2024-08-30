@@ -10,7 +10,7 @@
 
 # Clear old static DNS entries matching the zone and TTL.
 /ip dns static
-:foreach dnsrecord in=[find where name~"\\..*" . $zone] do={
+:foreach dnsrecord in=[find where name~"*." . $zone] do={
     :local fqdn [get $dnsrecord name]
     :local hostname [:pick $fqdn 0 ([:len $fqdn] - ([:len $zone] + 1))]
     :local recordttl [get $dnsrecord ttl]
@@ -63,7 +63,7 @@
 
 # Disable static entries (Static entries are needed for tracking)
 /ip dns static
-:foreach dnsrecord in=[find where name~"\\..*" . $zone] do={
+:foreach dnsrecord in=[find where name~"*." . $zone] do={
     :local fqdn [get $dnsrecord name]
     :local hostname [:pick $fqdn 0 ([:len $fqdn] - ([:len $zone] + 1))]
     :local recordttl [get $dnsrecord ttl]
