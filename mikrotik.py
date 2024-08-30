@@ -5,6 +5,7 @@ import socket
 import dns.query
 import dns.resolver
 import dns.update
+import dns.tsigkeyring
 from flask import Flask, jsonify
 
 # Configuration
@@ -92,8 +93,8 @@ def update(host=None, ip=None):
     ptr = get_full_ptr(ip)
 
     try:
-        update = dns.update.Update(zone, keyring=dns.tsigkeyring.from_text({keyname: keyval}))
-        update.add(fqdn, ttl, t, ip)
+        update = dns.update.Update(zone, keyring=dns.tsigkeyring.from_text({keyname: keyval}), keyalgorithm=dns.tsig.HMAC_MD5)
+        update.add(host, ttl, t, ip)
         update.add(ptr, ttl, 'PTR', fqdn)
 
         response = dns.query.tcp(update, dnsserver)
@@ -117,12 +118,12 @@ def delete(host=None):
     fqdn = f"{host}.{zone}"
 
     try:
-        update = dns.update.Update(zone, keyring=dns.tsigkeyring.from_text({keyname: keyval}))
+        update = dns.update.Update(zone, keyring=dns.tsigkeyring.from_text({keyname: keyval}), keyalgorithm=dns.tsig.HMAC_MD5)
         if rev_in_dns(ip):
             ptr = get_full_ptr(ip)
             update.delete(ptr, 'PTR')
 
-        update.delete(fqdn, t)
+        update.delete(host, t)
 
         response = dns.query.tcp(update, dnsserver)
         return "OK", 200
@@ -130,4 +131,4 @@ def delete(host=None):
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, ssl_context='adhoc')  # Use HTTPS in production
+    app.run(host='0.0.0.0', port=5001)
