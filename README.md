@@ -6,7 +6,7 @@ The script uses dig and nsupdate for dns management and Python Flask for webserv
 
 ### Components
 * Dockerfile
-  Centos 7 Based Dockerfile, for running the Python based webserver
+  Ubuntu Based Dockerfile, for running the Python based webserver
 * mikrotik.py
   This is the webserver, and this script communicates to dns via nsupdate and dig.
 * mikrotik_script.txt
@@ -23,13 +23,12 @@ The script uses dig and nsupdate for dns management and Python Flask for webserv
 ## Configuration
 
 ###### mikrotik.py
-* ```dig``` Path of the dig binary on the system. Defaults for linux systems
-* ```nsupdate``` Path of the nsupdate binary on the system. Defaults for linux systems.
-* ```keyname``` Keyname for dynamic updates configured in Bind or any other supported nameserver.
-* ```keyval``` Key secret for the matching keyname.
-* ```dnsserver``` The DNS Server IP address which can be queried by dig.
-* ```zone``` The DNS Zone what we manage
-* ```ttl``` DNS TTL to set
+The script uses the following environment variables for configuration:
+* ```NSUPDATE_KEYNAME``` Keyname for dynamic updates configured in Bind or any other supported nameserver.
+* ```NSUPDATE_KEY``` Key secret for the matching keyname.
+* ```DNS_SERVER``` The DNS Server IP address which can be queried by dig.
+* ```DNS_ZONE``` The DNS Zone what we manage
+* ```TTL``` DNS TTL to set
 
 
 ###### mikrotik_script.txt
@@ -64,7 +63,7 @@ The script uses dig and nsupdate for dns management and Python Flask for webserv
 * build docker cointainer in the directory where the Dockerfile is.
   ```docker build -t mikrotik-dhcpdns .```
 * run the container
-  ```docker run -d -p 5000:5000 --restart unless-stopped --name mikrotik-dhcpdns mikrotik-dhcpdns```
+  ```docker run -d -p 5001:5001 --restart unless-stopped --name mikrotik-dhcpdns mikrotik-dhcpdns```
 
 
 ## Standalone

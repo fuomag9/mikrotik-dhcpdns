@@ -13,7 +13,7 @@ keyname = os.getenv("NSUPDATE_KEYNAME", "your-default-key-here")
 keyval = os.getenv("NSUPDATE_KEY", "your-default-key-here")
 dnsserver = os.getenv("DNS_SERVER", "<DNS SERVER IP ADDRESS>")
 zone = os.getenv("DNS_ZONE", "zone.example.com")
-ttl = 600
+ttl = os.getenv("TTL", 600)
 
 # Security enhancements
 def is_valid_ipv4_address(address):
