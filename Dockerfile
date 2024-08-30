@@ -1,10 +1,8 @@
-FROM centos:7
-MAINTAINER ferr <f@minimoo.eu>
+FROM ubuntu
 LABEL version="1.0"
 LABEL description="Mikrotik DHCP DNS Updater"
 
 ENV container docker
-#ENV init /lib/systemd/systemd
 ENV LC_ALL C
 
 RUN yum update -y; yum install -y python-flask bind-utils;
