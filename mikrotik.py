@@ -1,181 +1,133 @@
 #!/usr/bin/env python3
-from flask import Flask
-import socket, commands
-#
+import os
+import socket
+
+import dns.query
+import dns.resolver
+import dns.update
+from flask import Flask, jsonify
+
 # Configuration
-#
-#
-# dig binary path
-dig = "/usr/bin/dig"
+keyname = os.getenv("NSUPDATE_KEYNAME", "your-default-key-here")
+keyval = os.getenv("NSUPDATE_KEY", "your-default-key-here")
+dnsserver = os.getenv("DNS_SERVER", "<DNS SERVER IP ADDRESS>")
+zone = os.getenv("DNS_ZONE", "zone.example.com")
+ttl = 600
 
-# nsupdate binary path
-nsupdate = "/usr/bin/nsupdate"
-
-# nsupdate key name
-keyname = "nsupdate"
-
-# nsupdate key secret
-keyval = "tBoK9ec5CGBFE8VAwUKwqyKTaRidq6a1pt22r9+uFYPbLHEIpNaV8ekRm92nvooE1m3ShH60Musv2O+DGlH9Xw=="
-
-# dns server for dig queries
-dnsserver = "<DNS SERVER IP ADDRESS>"
-
-# managed DHCP DNS zone
-zone = "<DNS ZONE. EXAMPLE.COM>"
-
-# DNS TTL (Default: 600 sec)
-ttl = "600"
-
-#
-#
-# Configuration end
-#
-# DO NOT CHANGE
-#
-#
-
+# Security enhancements
 def is_valid_ipv4_address(address):
     try:
         socket.inet_pton(socket.AF_INET, address)
-    except AttributeError:  # no inet_pton here, sorry
-        try:
-            socket.inet_aton(address)
-        except socket.error:
-            return False
-        return address.count('.') == 3
-    except socket.error:  # not a valid address
+    except socket.error:
         return False
     return True
-
 
 def is_valid_ipv6_address(address):
     try:
         socket.inet_pton(socket.AF_INET6, address)
-    except socket.error:  # not a valid address
+    except socket.error:
         return False
     return True
 
 def is_valid_address(address):
-    if (is_valid_ipv4_address(address) or is_valid_ipv6_address(address)):
-        return True
-    else:
-        return False
+    return is_valid_ipv4_address(address) or is_valid_ipv6_address(address)
 
 def get_ip_type(ip):
-    if is_valid_ipv4_address(ip):
-        return 'A'
-    else:
-        return 'AAAA'
+    return 'A' if is_valid_ipv4_address(ip) else 'AAAA'
 
 def get_full_ptr(ip):
-    i = ip.split('.')
-    #return i
-    return "{i4}.{i3}.{i2}.{i1}.in-addr.arpa".format(i4=i[3], i3=i[2], i2=i[1], i1=i[0])
+    return ".".join(reversed(ip.split("."))) + ".in-addr.arpa"
 
-def is_valid_hostname(host = None):
-    chars = "ABCDEFGHIJKLMNOUPQRSTXYVWZabcdefghijklmnoupqrstxyvwz0987654321-"
-    valid = all(c in chars for c in host)
-    return valid
-
+def is_valid_hostname(host):
+    return all(c.isalnum() or c == '-' for c in host) and len(host) <= 255
 
 def host_in_dns(host):
-    h = "{host}.{zone}".format(host=host,zone=zone)
-    cmd = "{dig} +short {host} @{dnsserver}".format(dig=dig,host=h,dnsserver=dnsserver)
-    retval,output = commands.getstatusoutput(cmd)
-    if output == "":
+    try:
+        fqdn = f"{host}.{zone}"
+        answers = dns.resolver.resolve(fqdn, 'A' if is_valid_ipv4_address(dnsserver) else 'AAAA')
+        return bool(answers)
+    except dns.resolver.NoAnswer:
         return False
-    else:
-        return True
+    except dns.resolver.NXDOMAIN:
+        return False
 
 def get_ip(host):
-    h = "{host}.{zone}".format(host=host,zone=zone)
-    cmd = "{dig} +short {host} @{dnsserver}".format(dig=dig,host=h,dnsserver=dnsserver)
-    retval,output = commands.getstatusoutput(cmd)
-    return output
+    fqdn = f"{host}.{zone}"
+    try:
+        answers = dns.resolver.resolve(fqdn, 'A' if is_valid_ipv4_address(dnsserver) else 'AAAA')
+        return answers[0].to_text()
+    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+        return None
 
 def rev_in_dns(ip):
-    cmd = "{dig} +short -x {ip} @{dnsserver}".format(dig=dig,ip=ip,dnsserver=dnsserver)
-    retval,output = commands.getstatusoutput(cmd)
-    if output == "":
+    try:
+        ptr_record = get_full_ptr(ip)
+        answers = dns.resolver.resolve(ptr_record, 'PTR')
+        return bool(answers)
+    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
         return False
-    else:
-        return True
-
 
 app = Flask(__name__)
-
 
 @app.route('/')
 def home():
     return 'Mikrotik DHCP DNS Updater'
 
+@app.route('/update/<host>/<ip>', methods=['POST'])
+def update(host=None, ip=None):
+    if not host or not ip:
+        return "Invalid request", 400
 
-@app.route('/update/<host>/<ip>')
-def update(host=None,ip=None):
-    if host == None:
-        return 'Something got wrong'
-    else:
-        if is_valid_address(ip):
-            if is_valid_hostname(host):
-                if host_in_dns(host): # we need to delete old entries first
-                    delete(host)
-                fqdn = "{host}.{zone}".format(host=host,zone=zone)
-                t = get_ip_type(ip)
-                ptr = get_full_ptr(ip)
-                batch = [
-                    'update add {fqdn} {ttl} {type} {ip}'.format(fqdn=fqdn, ttl=ttl, type=t, ip=ip),
-                    '',
-                    'update add {ptr} {ttl} PTR {fqdn}.'.format(ptr=ptr, ttl=ttl, fqdn=fqdn),
-                    'send',
-                    'quit\n'
-                ]
-                cmd = 'echo "{batch}" | {nsupdate} -y {keyname}:{keyval}'.format(batch='\n'.join(batch), nsupdate=nsupdate, keyname=keyname, keyval=keyval)
-                #return ' '.join(batch)
-                retval,output = commands.getstatusoutput(cmd)
-                if retval == 0:
-                    return "OK"
-                else:
-                    return output
-            else:
-            	return "Invalid hostname"
-        else:
-            return "Wrong IP"
+    if not is_valid_address(ip):
+        return "Invalid IP address", 400
 
+    if not is_valid_hostname(host):
+        return "Invalid hostname", 400
 
+    if host_in_dns(host):  # delete old entries
+        delete(host)
 
-@app.route('/delete/<host>')
+    fqdn = f"{host}.{zone}"
+    t = get_ip_type(ip)
+    ptr = get_full_ptr(ip)
+
+    try:
+        update = dns.update.Update(zone, keyring=dns.tsigkeyring.from_text({keyname: keyval}))
+        update.add(fqdn, ttl, t, ip)
+        update.add(ptr, ttl, 'PTR', fqdn)
+
+        response = dns.query.tcp(update, dnsserver)
+        return "OK", 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/delete/<host>', methods=['POST'])
 def delete(host=None):
-    if is_valid_hostname(host):
-        if host_in_dns(host):
-            ip = get_ip(host)
-            t = get_ip_type(ip)
-            fqdn = "{host}.{zone}".format(host=host,zone=zone)
-            if rev_in_dns(ip):
-                ptr = get_full_ptr(ip)
-                batch = [
-                    'update delete {ptr} PTR'.format(ptr=ptr),
-                    '', #DNS BUG from 2004 new line needs to be added
-                    'update delete {fqdn} {type}'.format(fqdn=fqdn,type=t),
-                    'send',
-                    'quit\n'
-                ]
-            else:
-                batch = [
-                    'update delete {fqdn} {type}'.format(fqdn=fqdn,type=t),
-                    'send',
-                    'quit\n'
-                ]
-            cmd = 'echo "{batch}" | {nsupdate} -y {keyname}:{keyval}'.format(batch='\n'.join(batch), nsupdate=nsupdate, keyname=keyname, keyval=keyval)
-            retval,output = commands.getstatusoutput(cmd)
-            if retval == 0:
-                return "OK"
-            else:
-                return output
-        else:
-            return "Host not in dns"
-    else:
-        return "Invalid Hostname"
+    if not is_valid_hostname(host):
+        return "Invalid hostname", 400
 
+    if not host_in_dns(host):
+        return "Host not found in DNS", 404
 
+    ip = get_ip(host)
+    if not ip:
+        return "IP not found for host", 404
 
-app.run(host='0.0.0.0')
+    t = get_ip_type(ip)
+    fqdn = f"{host}.{zone}"
+
+    try:
+        update = dns.update.Update(zone, keyring=dns.tsigkeyring.from_text({keyname: keyval}))
+        if rev_in_dns(ip):
+            ptr = get_full_ptr(ip)
+            update.delete(ptr, 'PTR')
+
+        update.delete(fqdn, t)
+
+        response = dns.query.tcp(update, dnsserver)
+        return "OK", 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, ssl_context='adhoc')  # Use HTTPS in production
