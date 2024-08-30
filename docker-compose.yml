@@ -1,7 +1,7 @@
 services:
     mikrotik-dhcpdns:
         ports:
-            - 5000:5000
+            - 5001:5001
         restart: always
         build:
             context: .
