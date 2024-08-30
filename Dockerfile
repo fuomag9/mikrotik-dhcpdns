@@ -5,8 +5,7 @@ LABEL description="Mikrotik DHCP DNS Updater"
 ENV container docker
 ENV LC_ALL C
 
-RUN yum update -y; yum install -y python-flask bind-utils;
-RUN yum clean all;
+RUN apt-get update -y; apt-get install -y python-flask bind-utils;
 
 ADD mikrotik.py /mikrotik.py
 RUN chmod 755 /mikrotik.py
